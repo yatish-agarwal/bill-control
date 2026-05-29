@@ -5,15 +5,15 @@ export type BillStage =
   | "SP Approval"
   | "MD Approval"
   | "Payment"
+  | "Payment Entry"
   | "Closed";
 
-export type VerificationStatus = "Pending" | "In Progress" | "Done" | "On Hold" | "Sent Back";
-export type ApprovalStatus = "Pending" | "Approved" | "Sent Back" | "Held";
-export type PaymentStatus = "Pending" | "Approved for Payment" | "Released" | "Held";
+export type VerificationStatus = "Pending" | "In Progress" | "Done" | "On Hold";
+export type ApprovalStatus = "Pending" | "Approved";
+export type PaymentStatus = "Pending" | "Released";
 
 export interface Bill {
-  // Row index in sheet (1-based, actual sheet row)
-  rowIndex: number;
+  rowIndex: number; // actual sheet row (1-based)
 
   // INTAKE (cols 1–18)
   billId: string;
@@ -35,42 +35,50 @@ export interface Bill {
   intakeBy: string;
   intakeDate: string;
 
-  // VERIFICATION (cols 19–24)
+  // VERIFICATION (cols 19–27)
   verificationStatus: VerificationStatus;
+  vendorLedgerChecked: string;
+  adjustment: string;
+  adjustmentRemarks: string;
+  finalNetPayable: string;
+  supportingDocLink: string;
+  verificationComments: string;
   verifiedBy: string;
   verifiedOn: string;
-  verificationComments: string;
-  supportingDocLink: string;
-  finalNetPayable: string;
 
-  // TALLY (cols 25–26)
+  // TALLY (cols 28–29)
   tallyVoucherNo: string;
   tallyEntryDate: string;
 
-  // SP APPROVAL (cols 27–30)
+  // SP APPROVAL (cols 30–33)
   spStatus: ApprovalStatus;
   spApprover: string;
   spApprovedOn: string;
   spComments: string;
 
-  // MD APPROVAL (cols 31–34)
+  // MD APPROVAL (cols 34–37)
   mdStatus: ApprovalStatus;
   mdApprover: string;
   mdApprovedOn: string;
   mdComments: string;
 
-  // PAYMENT (cols 35–38)
+  // PAYMENT (cols 38–42)
   paymentStatus: PaymentStatus;
   paymentDate: string;
+  paidFrom: string;
   utrChequeNo: string;
   releasedBy: string;
 
-  // TRACKING (cols 39–43)
+  // PAYMENT ENTRY (cols 43–44)
+  paymentVoucherNo: string;
+  paymentVoucherDate: string;
+
+  // TRACKING (cols 45–49)
   currentStage: BillStage;
   currentOwner: string;
   daysInStage: string;
   totalAgeing: string;
-  paymentAdviceSent: string;
+  isDuplicate: string;
 }
 
 export interface ParsedInvoiceFields {

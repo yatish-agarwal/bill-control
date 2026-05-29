@@ -7,7 +7,7 @@ Single source of truth for all data structures. Read this before writing any cod
 ## Google Sheet Structure
 
 **Sheet name:** `Bill Register` (exact, case-sensitive)
-**Row 1:** Group labels — INTAKE, VERIFICATION, TALLY, APPROVALS, PAYMENT, TRACKING (AUTO)
+**Row 1:** Group labels — INTAKE, VERIFICATION, TALLY, APPROVALS, PAYMENT, PAYMENT ENTRY, TRACKING (AUTO)
 **Row 2:** Column headers
 **Row 3+:** Bill data (`DATA_START_ROW = 3`)
 
@@ -27,107 +27,119 @@ No DD/MM/YYYY. No MM-DD-YYYY. No timestamps in bill fields.
 
 ---
 
-## Column Map (1-based) — 43 columns total (A–AQ)
+## Column Map (1-based) — 49 columns total (A–AW)
 
-| # | Field Key | Header in Sheet | Group | Type | Notes |
-|---|---|---|---|---|---|
-| 1 | `billId` | Bill ID | INTAKE | string | `BILL-NNNN` |
-| 2 | `dateReceived` | Date Received | INTAKE | date | `YYYY-MM-DD` |
-| 3 | `source` | Source | INTAKE | string | Email, Hard Copy, Courier, WhatsApp, Other |
-| 4 | `siteProject` | Site / Project | INTAKE | string | See Site Master |
-| 5 | `vendor` | Vendor | INTAKE | string | Free text |
-| 6 | `vendorBillNo` | Vendor Bill No. | INTAKE | string | Free text — store as RAW |
-| 7 | `billDate` | Bill Date | INTAKE | date | `YYYY-MM-DD` |
-| 8 | `dueDate` | Due Date | INTAKE | date | `YYYY-MM-DD` or empty |
-| 9 | `billType` | Bill Type | INTAKE | string | See Bill Types below |
-| 10 | `poNumber` | PO Number | INTAKE | string | Free text or empty — store as RAW |
-| 11 | `billAmount` | Bill Amount (₹) | INTAKE | number string | Numeric, no commas — store as RAW |
-| 12 | `gst` | GST (₹) | INTAKE | number string | Numeric or `0` — store as RAW |
-| 13 | `tds` | TDS (₹) | INTAKE | number string | Numeric or `0` — store as RAW |
-| 14 | `netAmount` | Net Amount (₹) | INTAKE | number string | Numeric — store as RAW |
-| 15 | `billPdfLink` | Bill PDF Link | INTAKE | string | URL or empty |
-| 16 | `assignedTo` | Assigned To (SA) | INTAKE | string | Jyoti, Arpan, Jaya, Souro, Prantika, Pronoy |
-| 17 | `intakeBy` | Intake By | INTAKE | string | Free text |
-| 18 | `intakeDate` | Intake Date | INTAKE | date | `YYYY-MM-DD` |
-| 19 | `verificationStatus` | Verification Status | VERIFICATION | string | See status vocab below |
-| 20 | `verifiedBy` | Verified By | VERIFICATION | string | Free text |
-| 21 | `verifiedOn` | Verified On | VERIFICATION | date | `YYYY-MM-DD` |
-| 22 | `verificationComments` | Verification Comments | VERIFICATION | string | Free text |
-| 23 | `supportingDocLink` | Supporting Doc Link | VERIFICATION | string | URL or empty |
-| 24 | `finalNetPayable` | Final Net Payable (₹) | VERIFICATION | number string | Numeric — store as RAW |
-| 25 | `tallyVoucherNo` | Tally Voucher # | TALLY | string | Free text — store as RAW |
-| 26 | `tallyEntryDate` | Tally Entry Date | TALLY | date | `YYYY-MM-DD` |
-| 27 | `spStatus` | SP Status | APPROVALS | string | See status vocab below |
-| 28 | `spApprover` | SP Approver | APPROVALS | string | Free text |
-| 29 | `spApprovedOn` | SP Approved On | APPROVALS | date | `YYYY-MM-DD` |
-| 30 | `spComments` | SP Comments | APPROVALS | string | Free text |
-| 31 | `mdStatus` | MD Status | APPROVALS | string | See status vocab below |
-| 32 | `mdApprover` | MD Approver | APPROVALS | string | Free text |
-| 33 | `mdApprovedOn` | MD Approved On | APPROVALS | date | `YYYY-MM-DD` |
-| 34 | `mdComments` | MD Comments | APPROVALS | string | Free text |
-| 35 | `paymentStatus` | Payment Status | PAYMENT | string | See status vocab below |
-| 36 | `paymentDate` | Payment Date | PAYMENT | date | `YYYY-MM-DD` |
-| 37 | `utrChequeNo` | UTR / Cheque # | PAYMENT | string | Free text — store as RAW |
-| 38 | `releasedBy` | Released By | PAYMENT | string | Free text |
-| 39 | `currentStage` | Current Stage | TRACKING | string | See stage vocab below |
-| 40 | `currentOwner` | Current Owner | TRACKING | string | Free text |
-| 41 | `daysInStage` | Days in Stage | TRACKING | number string | Auto-calculated |
-| 42 | `totalAgeing` | Total Ageing (Days) | TRACKING | number string | Auto-calculated |
-| 43 | `paymentAdviceSent` | Payment Advice Sent | TRACKING | string | Yes, No |
+| # | Field Key | Header in Sheet | Group |
+|---|---|---|---|
+| 1 | `billId` | Bill ID | INTAKE |
+| 2 | `dateReceived` | Date Received | INTAKE |
+| 3 | `source` | Source | INTAKE |
+| 4 | `siteProject` | Site / Project | INTAKE |
+| 5 | `vendor` | Vendor | INTAKE |
+| 6 | `vendorBillNo` | Vendor Bill No. | INTAKE |
+| 7 | `billDate` | Bill Date | INTAKE |
+| 8 | `dueDate` | Due Date | INTAKE |
+| 9 | `billType` | Bill Type | INTAKE |
+| 10 | `poNumber` | PO / PI Number | INTAKE |
+| 11 | `billAmount` | Bill Amount (₹) | INTAKE |
+| 12 | `gst` | GST (₹) | INTAKE |
+| 13 | `tds` | TDS (₹) | INTAKE |
+| 14 | `netAmount` | Net Amount (₹) | INTAKE |
+| 15 | `billPdfLink` | Bill PDF Link | INTAKE |
+| 16 | `assignedTo` | Assigned To (SA) | INTAKE |
+| 17 | `intakeBy` | Intake By | INTAKE |
+| 18 | `intakeDate` | Intake Date | INTAKE |
+| 19 | `verificationStatus` | Verification Status | VERIFICATION |
+| 20 | `vendorLedgerChecked` | Vendor Ledger Checked | VERIFICATION |
+| 21 | `adjustment` | Adjustment (₹) | VERIFICATION |
+| 22 | `adjustmentRemarks` | Adjustment Remarks | VERIFICATION |
+| 23 | `finalNetPayable` | Final Net Payable (₹) | VERIFICATION |
+| 24 | `supportingDocLink` | Supporting Doc | VERIFICATION |
+| 25 | `verificationComments` | Verification Comments | VERIFICATION |
+| 26 | `verifiedBy` | Verified By | VERIFICATION |
+| 27 | `verifiedOn` | Verified On | VERIFICATION |
+| 28 | `tallyVoucherNo` | Tally Voucher # | TALLY |
+| 29 | `tallyEntryDate` | Tally Entry Date | TALLY |
+| 30 | `spStatus` | SP Status | APPROVALS |
+| 31 | `spApprover` | SP Approver | APPROVALS |
+| 32 | `spApprovedOn` | SP Approved On | APPROVALS |
+| 33 | `spComments` | SP Comments | APPROVALS |
+| 34 | `mdStatus` | MD Status | APPROVALS |
+| 35 | `mdApprover` | MD Approver | APPROVALS |
+| 36 | `mdApprovedOn` | MD Approved On | APPROVALS |
+| 37 | `mdComments` | MD Comments | APPROVALS |
+| 38 | `paymentStatus` | Payment Status | PAYMENT |
+| 39 | `paymentDate` | Payment Date | PAYMENT |
+| 40 | `paidFrom` | Paid From (Bank) | PAYMENT |
+| 41 | `utrChequeNo` | UTR / Cheque # | PAYMENT |
+| 42 | `releasedBy` | Released By | PAYMENT |
+| 43 | `paymentVoucherNo` | Payment Voucher # | PAYMENT ENTRY |
+| 44 | `paymentVoucherDate` | Payment Voucher Date | PAYMENT ENTRY |
+| 45 | `currentStage` | Current Stage | TRACKING |
+| 46 | `currentOwner` | Current Owner | TRACKING |
+| 47 | `daysInStage` | Days in Stage | TRACKING |
+| 48 | `totalAgeing` | Total Ageing (Days) | TRACKING |
+| 49 | `isDuplicate` | Duplicate | TRACKING |
 
 ---
 
 ## Status Vocabularies
 
-### BillStage (column 39 — currentStage)
-`Intake` | `Verification` | `Tally` | `SP Approval` | `MD Approval` | `Payment` | `Closed`
+### BillStage (col 45 — currentStage)
+`Intake` | `Verification` | `Tally` | `SP Approval` | `MD Approval` | `Payment` | `Payment Entry` | `Closed`
 
-### VerificationStatus (column 19)
-`Pending` | `In Progress` | `Done` | `On Hold` | `Sent Back`
+### VerificationStatus (col 19)
+`Pending` | `In Progress` | `Done` | `On Hold`
 
-### ApprovalStatus (columns 27, 31 — spStatus, mdStatus)
-`Pending` | `Approved` | `Sent Back` | `Held`
+### ApprovalStatus (cols 30, 34 — spStatus, mdStatus)
+`Pending` | `Approved`
 
-### PaymentStatus (column 35)
-`Pending` | `Approved for Payment` | `Released` | `Held`
+### PaymentStatus (col 38)
+`Pending` | `Released`
 
----
-
-## Bill Types (column 9)
-`WH Electricity` | `WH Rent` | `Office Rent` | `Internet / Telecom` | `Cloud / Software`
-`Manpower Services` | `Against PO` | `Asset Purchase` | `Advance Payment`
-`Consumables` | `Consulting` | `Pest Control` | `Other`
+### YesNo (cols 20, 49)
+`Yes` | `No` | `` (empty)
 
 ---
 
-## Bill Type → Verification Mode
-
-| Bill Type | Verification Mode | V1 Approach |
-|---|---|---|
-| WH Electricity | Sanity check vs last month | Flag if >20% higher — SA notes in comments |
-| WH Rent / Office Rent | Agreement check | Confirm matches Recurring Bill Master |
-| Internet / Telecom / Cloud | Contract check | Confirm matches contracted plan amount |
-| Manpower Services | Central team sign-off | Shrikant/Joyeeta verify offline, upload doc |
-| Against PO | 3-way match | Use 3-way match tool on verify page |
-| Asset Purchase | 3-way match | Use 3-way match tool on verify page |
-| Advance Payment | SP judgement | Invoice only — SA uploads relevant doc |
-| Consumables | SP judgement | Invoice only — lightweight, no checklist |
-| Consulting / Pest Control / Other | SP judgement | Invoice only |
-
-V1 verification: simplified single form for all bill types. SA fills printed checklist,
-scans or photographs it, uploads to Google Drive, pastes link in `supportingDocLink`.
+## Sites (col 4 — siteProject)
+Dhulagarh, Dhulagarh-ZEPTO, Dankuni, HO / Kolkata, Bhubaneswar,
+Noida, Pune, Detroj, Kheda, Taloja, Vavdi, CLCC
 
 ---
 
-## Sites (known values for siteProject)
-Dhulagarh, Dankuni, HO / Kolkata, Bhubaneswar, Noida, Pune, Detroj, Kheda,
-New Mumbai, New Ahmedabad, CLCC, Noida-ZEPTO, DHLG-ZEPTO, Kheda-ZEPTO, Dankuni-ZEPTO
+## Bill Types (col 9 — billType)
+Electricity, Rent, Manpower, Consumables, Services, Staff Expenses,
+Advance against PO/PI, Purchase against PO, Repair & Maintenance,
+IT, Asset Rental, Travelling, Others
+
+---
+
+## SA List (col 16 — assignedTo)
+Jyoti, Arpan, Jaya, Souro, Prantika, Pronoy
 
 ---
 
 ## RAW vs USER_ENTERED
-Use `RAW` valueInputOption for:
-`billAmount`, `gst`, `tds`, `netAmount`, `finalNetPayable`,
-`vendorBillNo`, `poNumber`, `tallyVoucherNo`, `utrChequeNo`
+Use `RAW` for: `billAmount`, `gst`, `tds`, `netAmount`, `adjustment`,
+`finalNetPayable`, `vendorBillNo`, `poNumber`, `tallyVoucherNo`,
+`utrChequeNo`, `paymentVoucherNo`
 
-Use `USER_ENTERED` for everything else (dates, text fields, status fields).
+Use `USER_ENTERED` for everything else (dates, text, status fields).
+
+---
+
+## Duplicate Detection
+At intake: if same `vendor` + same `vendorBillNo` already exists in the sheet,
+set `isDuplicate = "Yes"` and show a red warning. Allow submission — do not block.
+On dashboard: bills with `isDuplicate = "Yes"` are highlighted red.
+
+---
+
+## Edit Rules (Option B)
+Data from any stage is editable by the stage owner until the next stage is approved.
+- Verification + Tally fields: editable until SP approves
+- SP fields: editable until MD approves
+- MD fields: editable until payment is released
+- Payment fields: editable until payment voucher is entered
+Bills never move backward. Stage only advances on explicit action.
