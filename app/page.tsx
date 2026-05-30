@@ -196,8 +196,16 @@ export default function Dashboard() {
                               Open →
                             </Link>
                           ) : bill.currentStage === "Closed" ? (
-                            <span className="text-xs text-green-600">✓ Paid</span>
-                          ) : null}
+                            <Link href={`/bill/${bill.billId}`}
+                              className="text-xs text-green-600 hover:underline font-medium whitespace-nowrap">
+                              ✓ Paid · View
+                            </Link>
+                          ) : (
+                            <Link href={`/bill/${bill.billId}`}
+                              className="text-xs text-blue-600 hover:underline font-medium whitespace-nowrap">
+                              View →
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     );
