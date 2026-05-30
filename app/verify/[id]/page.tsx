@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
-import { Loader2, FileText, AlertTriangle, ClipboardCheck, CheckCircle2 } from "lucide-react";
+import { DocLink } from "@/components/DocViewer";
+import { Loader2, AlertTriangle, ClipboardCheck, CheckCircle2 } from "lucide-react";
 
 interface BillTypeRule {
   billType: string;
@@ -152,10 +153,7 @@ export default function VerifyPage({ params }: { params: Promise<{ id: string }>
           </div>
           {bill.billPdfLink && (
             <div className="mt-3">
-              <a href={bill.billPdfLink} target="_blank" rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                <FileText className="w-3.5 h-3.5" /> View Bill PDF
-              </a>
+              <DocLink label="View Bill PDF" url={bill.billPdfLink} />
             </div>
           )}
         </div>

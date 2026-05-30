@@ -2,7 +2,8 @@
 
 import { Bill } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
-import { FileText, Check, Clock } from "lucide-react";
+import { DocLink } from "@/components/DocViewer";
+import { Check, Clock } from "lucide-react";
 
 // Indian-format currency; fall back to raw text for legacy/blank values.
 function inr(raw: string) {
@@ -91,10 +92,7 @@ export function BillHistory({ bill }: { bill: Bill }) {
         <Row label="Intake By" value={bill.intakeBy} />
         {bill.billPdfLink && (
           <div className="col-span-2 sm:col-span-3">
-            <a href={bill.billPdfLink} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-              <FileText className="w-3.5 h-3.5" /> View Bill PDF
-            </a>
+            <DocLink label="View Bill PDF" url={bill.billPdfLink} />
           </div>
         )}
       </Section>
@@ -117,10 +115,7 @@ export function BillHistory({ bill }: { bill: Bill }) {
         )}
         {bill.supportingDocLink && (
           <div className="col-span-2 sm:col-span-3">
-            <a href={bill.supportingDocLink} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-              <FileText className="w-3.5 h-3.5" /> Supporting Document
-            </a>
+            <DocLink label="View Supporting Document" url={bill.supportingDocLink} />
           </div>
         )}
       </Section>
