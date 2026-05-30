@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bill, BillStage } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
-import { Loader2, Plus, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader2, Plus, RefreshCw, AlertTriangle, Copy, CalendarDays } from "lucide-react";
 
 const STAGES: { stage: BillStage; label: string; color: string; route: string }[] = [
   { stage: "Verification", label: "Verification", color: "bg-blue-500", route: "verify" },
@@ -12,20 +12,45 @@ const STAGES: { stage: BillStage; label: string; color: string; route: string }[
   { stage: "SP Approval", label: "SP Approval", color: "bg-orange-500", route: "sp-approval" },
   { stage: "MD Approval", label: "MD Approval", color: "bg-yellow-500", route: "md-approval" },
   { stage: "Payment", label: "Payment", color: "bg-teal-500", route: "payment" },
+  { stage: "Payment Entry", label: "Payment Entry", color: "bg-indigo-500", route: "payment-entry" },
   { stage: "Closed", label: "Closed", color: "bg-green-500", route: "" },
 ];
+
+const isDup = (b: Bill) => (b.isDuplicate || "").trim().toLowerCase() === "yes";
+
+// Local (browser-timezone) date as YYYY-MM-DD, to compare against stored dueDate.
+const todayStr = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+};
+// Overdue = strictly before today (a bill due today is not yet overdue) and not closed.
+const isPastDue = (b: Bill) => !!b.dueDate && b.dueDate < todayStr() && b.currentStage !== "Closed";
+
+// Format an amount string with Indian grouping; fall back to raw text for legacy/blank values.
+const inr = (raw: string) => {
+  const v = (raw || "").trim();
+  if (v === "") return "—";
+  const n = Number(v);
+  return Number.isFinite(n) ? `₹${n.toLocaleString("en-IN")}` : `₹${v}`;
+};
 
 export default function Dashboard() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<BillStage | "All">("All");
 
   const load = () => {
     setLoading(true);
+    setError(null);
     fetch("/api/bills")
       .then((r) => r.json())
-      .then((data) => { setBills(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then((data) => {
+        if (Array.isArray(data)) setBills(data);
+        else { setBills([]); setError(data?.error || "Failed to load bills"); }
+        setLoading(false);
+      })
+      .catch((e) => { setError(String(e)); setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);
@@ -35,9 +60,8 @@ export default function Dashboard() {
     return acc;
   }, {});
 
-  const overdue = bills.filter(
-    (b) => b.dueDate && new Date(b.dueDate) < new Date() && b.currentStage !== "Closed"
-  );
+  const overdue = bills.filter(isPastDue);
+  const duplicates = bills.filter(isDup);
 
   const visible = filter === "All" ? bills : bills.filter((b) => b.currentStage === filter);
 
@@ -49,7 +73,11 @@ export default function Dashboard() {
           <p className="text-xs text-gray-500 mt-0.5">Payables workflow — single source of truth</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={load} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">
+          <Link href="/calendar" className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+            <CalendarDays className="w-4 h-4" /> Calendar
+          </Link>
+          <button onClick={load} aria-label="Refresh bills" title="Refresh"
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">
             <RefreshCw className="w-4 h-4" />
           </button>
           <Link href="/intake" className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
@@ -59,7 +87,7 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
           {STAGES.map((s) => (
             <button key={s.stage} onClick={() => setFilter(filter === s.stage ? "All" : s.stage)}
               className={`rounded-xl p-3 text-center transition-all border-2 ${filter === s.stage ? "border-blue-500 bg-blue-50" : "border-transparent bg-white shadow-sm hover:shadow"}`}>
@@ -70,12 +98,32 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {error && (
+          <div className="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-700">Couldn&apos;t load bills</p>
+              <p className="text-xs text-red-500 mt-0.5 break-all">{error}</p>
+            </div>
+          </div>
+        )}
+
         {overdue.length > 0 && (
           <div className="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-red-700">{overdue.length} bill{overdue.length > 1 ? "s" : ""} past due date</p>
               <p className="text-xs text-red-500 mt-0.5">{overdue.map((b) => b.billId).join(", ")}</p>
+            </div>
+          </div>
+        )}
+
+        {duplicates.length > 0 && (
+          <div className="mb-5 flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-xl p-4">
+            <Copy className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-rose-700">{duplicates.length} possible duplicate{duplicates.length > 1 ? "s" : ""}</p>
+              <p className="text-xs text-rose-500 mt-0.5">{duplicates.map((b) => b.billId).join(", ")}</p>
             </div>
           </div>
         )}
@@ -121,15 +169,20 @@ export default function Dashboard() {
                 <tbody className="divide-y divide-gray-100">
                   {visible.map((bill) => {
                     const stageInfo = STAGES.find((s) => s.stage === bill.currentStage);
-                    const isOverdue =
-                      bill.dueDate && new Date(bill.dueDate) < new Date() && bill.currentStage !== "Closed";
+                    const isOverdue = isPastDue(bill);
+                    const dup = isDup(bill);
                     return (
-                      <tr key={bill.billId} className={`hover:bg-gray-50 transition-colors ${isOverdue ? "bg-red-50" : ""}`}>
-                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{bill.billId}</td>
+                      <tr key={bill.billId} className={`hover:bg-gray-50 transition-colors ${dup ? "bg-rose-50" : isOverdue ? "bg-red-50" : ""}`}>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                          <span className="inline-flex items-center gap-1">
+                            {bill.billId}
+                            {dup && <Copy className="w-3 h-3 text-rose-500" aria-label="Possible duplicate" />}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 font-medium text-gray-800 max-w-[140px] truncate">{bill.vendor}</td>
                         <td className="px-4 py-3 text-gray-600 max-w-[100px] truncate">{bill.siteProject}</td>
                         <td className="px-4 py-3 text-right font-medium text-gray-800">
-                          ₹{bill.finalNetPayable || bill.netAmount}
+                          {inr(bill.finalNetPayable || bill.netAmount)}
                         </td>
                         <td className={`px-4 py-3 text-xs ${isOverdue ? "text-red-600 font-semibold" : "text-gray-500"}`}>
                           {bill.dueDate || "—"}{isOverdue && " ⚠"}

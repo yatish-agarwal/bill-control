@@ -50,6 +50,15 @@ const RAW_FIELDS = new Set<keyof typeof COL_MAP>([
   "vendorBillNo", "poNumber", "tallyVoucherNo", "utrChequeNo", "paymentVoucherNo",
 ]);
 
+// Today's date (YYYY-MM-DD) in IST — the company operates only in India, and the
+// server may run in UTC (Vercel), so audit dates must be stamped in Asia/Kolkata.
+function todayIST(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
 // Convert 1-based column number → letter(s). e.g. 1→A, 28→AB, 49→AW
 function colLetter(n: number): string {
   let s = "";
@@ -122,8 +131,14 @@ export async function checkDuplicate(vendor: string, vendorBillNo: string): Prom
 export async function appendBill(data: Partial<Bill>): Promise<{ billId: string; isDuplicate: boolean }> {
   const sheets = getSheets();
   const allBills = await getAllBills();
-  const newId = `BILL-${String(allBills.length + 1).padStart(4, "0")}`;
-  const today = new Date().toISOString().split("T")[0];
+  // Derive the next ID from the highest existing BILL-NNNN, not the row count —
+  // using the count would re-issue an existing ID after any bill is deleted.
+  const maxNum = allBills.reduce((max, b) => {
+    const m = /^BILL-(\d+)$/.exec(b.billId.trim());
+    return m ? Math.max(max, parseInt(m[1], 10)) : max;
+  }, 0);
+  const newId = `BILL-${String(maxNum + 1).padStart(4, "0")}`;
+  const today = todayIST();
 
   // Duplicate check
   const duplicate =
@@ -194,6 +209,7 @@ export async function updateBillFields(
 
   for (const [key, value] of Object.entries(fields)) {
     const colNum = COL_MAP[key as keyof typeof COL_MAP];
+    if (!colNum) continue; // ignore unknown fields — never build an invalid range
     const range = `${SHEET_NAME}!${colLetter(colNum)}${rowIndex}`;
     const entry = { range, values: [[value ?? ""]] };
     (RAW_FIELDS.has(key as keyof typeof COL_MAP) ? rawData : textData).push(entry);
@@ -217,4 +233,93 @@ export async function updateBillFields(
     );
   }
   await Promise.all(requests);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BILL CALENDAR — recurring-bills tracker (separate tab in the same sheet)
+// Layout: row 1 = title, row 2 = headers, row 3+ = data.
+// Fixed cols A–E: Vendor, Site, Bill Type, Frequency, Agreed Amount.
+// Cols F onward: one per month (e.g. "Apr 2026" … "Mar 2027"); cell = status.
+// Manual update — the app never auto-marks; a person sets each cell.
+// ─────────────────────────────────────────────────────────────────────────────
+const CAL_SHEET = "Bill Calendar";
+const CAL_HEADER_ROW = 2;
+const CAL_DATA_START = 3;
+const CAL_FIXED_COLS = 5;
+
+export interface CalendarRow {
+  rowIndex: number;
+  vendor: string;
+  site: string;
+  billType: string;
+  frequency: string;
+  agreedAmount: string;
+  months: string[]; // status per month, aligned to CalendarData.months
+}
+
+export interface CalendarData {
+  months: string[];
+  rows: CalendarRow[];
+}
+
+export async function getCalendar(): Promise<CalendarData> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: `${CAL_SHEET}!A${CAL_HEADER_ROW}:Z`,
+  });
+  const values = res.data.values ?? [];
+  const header = (values[0] ?? []).map((h) => String(h ?? ""));
+  const months = header.slice(CAL_FIXED_COLS).filter((m) => m.trim() !== "");
+
+  const rows: CalendarRow[] = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i] ?? [];
+    const vendor = String(r[0] ?? "").trim();
+    const site = String(r[1] ?? "").trim();
+    if (!vendor && !site) continue; // skip blank rows
+    rows.push({
+      rowIndex: CAL_HEADER_ROW + i, // header is row 2; first data row (i=1) → row 3
+      vendor,
+      site,
+      billType: String(r[2] ?? ""),
+      frequency: String(r[3] ?? ""),
+      agreedAmount: String(r[4] ?? ""),
+      months: months.map((_, idx) => String(r[CAL_FIXED_COLS + idx] ?? "")),
+    });
+  }
+  return { months, rows };
+}
+
+export async function appendCalendarRow(data: {
+  vendor: string;
+  site: string;
+  billType: string;
+  frequency: string;
+  agreedAmount: string;
+}): Promise<void> {
+  const sheets = getSheets();
+  const row = [data.vendor, data.site, data.billType, data.frequency, data.agreedAmount];
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: `${CAL_SHEET}!A${CAL_DATA_START}`,
+    valueInputOption: "RAW", // keep agreed amount as typed; no number mangling
+    requestBody: { values: [row] },
+  });
+}
+
+// Update a single month cell. monthIndex is 0-based within CalendarData.months.
+export async function updateCalendarCell(
+  rowIndex: number,
+  monthIndex: number,
+  status: string
+): Promise<void> {
+  const sheets = getSheets();
+  const colNum = CAL_FIXED_COLS + monthIndex + 1; // 1-based sheet column
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: `${CAL_SHEET}!${colLetter(colNum)}${rowIndex}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [[status]] },
+  });
 }

@@ -60,6 +60,36 @@ REASON: Matches the actual operational sites derived from vendor list analysis. 
 [2026-05-29] DECISION: RAW valueInputOption now explicitly applied per-field in updateBillFields.
 REASON: Previous implementation used USER_ENTERED for all fields — known bug where Sheets converts amounts to scientific notation. New sheets.ts splits updates into two batches (RAW vs USER_ENTERED) based on the RAW_FIELDS set.
 
+[2026-05-30] DECISION: Bill ID is derived from the highest existing BILL-NNNN, not the row count.
+REASON: `allBills.length + 1` re-issued an existing ID after any row deletion, causing duplicate billIds. Max-suffix+1 is collision-safe against gaps. (Concurrent-intake race still exists and is unchanged — separate known risk.)
+
+[2026-05-30] DECISION: Backward stage transitions are rejected at the API (PATCH returns 409).
+REASON: Detail pages are reachable by direct URL / stale browser tabs. Without a guard, re-submitting an earlier-stage form on an already-advanced bill regressed currentStage and overwrote later-stage data. Field edits without a stage change, and same/forward transitions, remain allowed (preserves Option-B editing).
+
+[2026-05-30] DECISION: API boundary validates intake — vendor, vendorBillNo, netAmount required; billAmount/gst/tds/netAmount must be numeric (regex ^\d+(\.\d{1,2})?$). Returns 400 otherwise.
+REASON: Client validation can be bypassed via direct API calls; a malformed POST otherwise wrote a junk row that consumed a Bill ID. Amount fields also validated on the intake and verification forms.
+
+[2026-05-30] DECISION: updateBillFields silently ignores keys not in COL_MAP.
+REASON: An unknown field name produced an empty column letter and an invalid A1 range, failing the entire batch update. Filtering unknown keys makes PATCH robust to extra fields in the request body.
+
+[2026-05-30] DECISION: Server-stamped dates (dateReceived, intakeDate) use Asia/Kolkata, and the dashboard overdue check compares local YYYY-MM-DD strings.
+REASON: `new Date().toISOString()` is UTC; on a UTC host (Vercel) audit dates landed a day behind during the IST early-morning window, and a bill due *today* was wrongly flagged overdue. The company operates only in India.
+
+[2026-05-30] DECISION: Dashboard amounts render with Indian digit grouping (toLocaleString en-IN), falling back to raw text for non-numeric/legacy values.
+REASON: Readability for the finance team; never hide a legacy value that isn't a clean number.
+
+[2026-05-30] DECISION: Built the Bill Calendar slice (was planned since 2026-05-29 but never coded). Reads the existing "Bill Calendar" tab; new page at /calendar.
+REASON: User noticed the calendar was missing. It was always in scope ("Bill Calendar to track recurring bills monthly, Apr 2026 → Mar 2027") and the sheet tab already existed with data — the app just never read it.
+
+[2026-05-30] DECISION: Calendar layout = fixed cols A–E (Vendor, Site, Bill Type, Frequency, Agreed Amount) + one column per month (Apr 2026 → Mar 2027), read dynamically from header row 2. Data starts row 3.
+REASON: Matches the pre-existing sheet tab exactly. Months are read from the header, not hardcoded, so rolling to a new FY only requires editing the sheet headers.
+
+[2026-05-30] DECISION: Calendar cell statuses = Expected / Received / Paid / N/A / (blank). Updated manually by clicking a cell to cycle; nothing auto-marks.
+REASON: User: "received is okay, then paid can also be another point" and "let's keep it manual for now. Simple." Auto-matching from the Bill Register is deferred to a later version.
+
+[2026-05-30] DECISION: Recurring bills can be added in-app (modal form on /calendar, appends to the tab) AND read from rows entered directly in the sheet.
+REASON: User chose "Both" — no-manual-work preference, but direct sheet edits must still be honoured.
+
 ---
 
 ## Open Questions (decisions not yet made)

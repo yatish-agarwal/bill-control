@@ -4,14 +4,17 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
 
 interface FormData {
-  paymentStatus: "Released" | "Held";
   paymentDate: string;
+  paidFrom: string;
   utrChequeNo: string;
   releasedBy: string;
 }
+
+// Placeholder bank list — replace with the real accounts when provided.
+const BANKS = ["HDFC Bank", "ICICI Bank", "Axis Bank", "State Bank of India", "Kotak Mahindra Bank"];
 
 export default function PaymentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -20,50 +23,55 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const { register, handleSubmit, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
-      paymentStatus: "Released",
       paymentDate: new Date().toISOString().split("T")[0],
       releasedBy: "Tara",
     },
   });
-  const status = watch("paymentStatus");
 
   useEffect(() => {
-    fetch(`/api/bills/${id}`).then((r) => r.json()).then((b) => { setBill(b); setLoading(false); });
+    fetch(`/api/bills/${id}`)
+      .then((r) => r.json())
+      .then((b) => { setBill(b && !b.error ? b : null); setLoading(false); })
+      .catch((e) => { setError(String(e)); setLoading(false); });
   }, [id]);
 
   const onSubmit = async (data: FormData) => {
     setSubmitting(true);
+    setError(null);
     try {
-      await fetch(`/api/bills/${id}`, {
+      const res = await fetch(`/api/bills/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          currentStage: data.paymentStatus === "Released" ? "Closed" : "Payment",
-          paymentAdviceSent: data.paymentStatus === "Released" ? "Yes" : "No",
+          paymentStatus: "Released",
+          currentStage: "Payment Entry",
         }),
       });
+      const result = await res.json();
+      if (!res.ok || result.error) throw new Error(result.error || `HTTP ${res.status}`);
       setDone(true);
+    } catch (e) {
+      setError(String(e));
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin w-7 h-7 text-blue-600" /></div>;
-  if (!bill) return <div className="min-h-screen flex items-center justify-center text-gray-500">Bill not found</div>;
+  if (loading) return <Spinner />;
+  if (!bill) return <NotFound />;
 
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-white rounded-2xl shadow p-10 text-center max-w-sm">
+        <div className="bg-white rounded-2xl shadow p-10 text-center max-w-sm w-full">
           <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">{status === "Released" ? "Payment Released" : "Payment Held"}</h2>
-          <p className="text-gray-500 text-sm mb-6">
-            {status === "Released" ? "Bill closed. Payment advice sent to vendor." : "Bill held in payment queue."}
-          </p>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Payment Released</h2>
+          <p className="text-gray-500 text-sm mb-6">Bill moved to Payment Entry (Tally voucher posting)</p>
           <button onClick={() => router.push("/")} className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Back to Dashboard</button>
         </div>
       </div>
@@ -73,69 +81,74 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-lg mx-auto">
-        <div className="mb-6">
-          <span className="text-xs font-semibold uppercase tracking-widest text-teal-600">Stage 6</span>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Payment Release</h1>
-          <p className="text-sm text-gray-500 mt-1">{bill.billId} · {bill.vendor}</p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-widest text-teal-600">Stage 6</span>
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">Payment Release</h1>
+            <p className="text-sm text-gray-500 mt-1">{bill.billId} · {bill.vendor}</p>
+          </div>
+          <button onClick={() => router.push("/")} className="text-xs text-blue-600 hover:underline mt-1">← Dashboard</button>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <InfoRow label="Vendor" value={bill.vendor} />
-            <InfoRow label="Vendor Bill No." value={bill.vendorBillNo} />
-            <InfoRow label="Site" value={bill.siteProject} />
-            <InfoRow label="Bill Date" value={bill.billDate} />
-            <InfoRow label="Due Date" value={bill.dueDate || "—"} />
+            <InfoRow label="Bill No." value={bill.vendorBillNo} />
             <InfoRow label="Net Payable" value={`₹${bill.finalNetPayable || bill.netAmount}`} />
-            <InfoRow label="Tally Voucher" value={bill.tallyVoucherNo || "—"} />
+            <InfoRow label="Due Date" value={bill.dueDate || "—"} />
             <InfoRow label="MD Approver" value={bill.mdApprover || "—"} />
+            <InfoRow label="MD Approved On" value={bill.mdApprovedOn || "—"} />
           </div>
-          {bill.mdComments && (
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-400 mb-1">MD Comments</p>
-              <p className="text-sm text-gray-700">{bill.mdComments}</p>
-            </div>
+          {bill.billPdfLink && (
+            <a href={bill.billPdfLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+              <FileText className="w-3.5 h-3.5" /> View Bill PDF
+            </a>
           )}
         </div>
 
+        {error && (
+          <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-600 break-all">{error}</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Payment Details</h2>
-
-            <div className="flex gap-3 mb-5">
-              {(["Released", "Held"] as const).map((opt) => (
-                <label key={opt} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                  status === opt
-                    ? opt === "Released" ? "border-teal-500 bg-teal-50 text-teal-700" : "border-orange-500 bg-orange-50 text-orange-700"
-                    : "border-gray-200 text-gray-500"
-                }`}>
-                  <input type="radio" value={opt} {...register("paymentStatus")} className="sr-only" />
-                  <span className="text-sm font-semibold">{opt}</span>
-                </label>
-              ))}
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-600 mb-1 block">Payment Date</label>
-                <input type="date" {...register("paymentDate")} className={inp} />
+                <label className="text-xs text-gray-600 mb-1 block">Payment Date *</label>
+                <input type="date" {...register("paymentDate", { required: "Required" })}
+                  className={`${inp} ${errors.paymentDate ? "border-red-400 bg-red-50" : ""}`} />
+                {errors.paymentDate && <p className="text-xs text-red-500 mt-0.5">{errors.paymentDate.message}</p>}
               </div>
               <div>
-                <label className="text-xs text-gray-600 mb-1 block">UTR / Cheque # {status === "Released" ? "*" : ""}</label>
-                <input {...register("utrChequeNo")} className={inp} placeholder="UTR number or cheque #" />
+                <label className="text-xs text-gray-600 mb-1 block">Paid From (Bank) *</label>
+                <input list="bank-list" {...register("paidFrom", { required: "Required" })}
+                  className={`${inp} ${errors.paidFrom ? "border-red-400 bg-red-50" : ""}`} placeholder="Select or type bank" />
+                <datalist id="bank-list">
+                  {BANKS.map((b) => <option key={b} value={b} />)}
+                </datalist>
+                {errors.paidFrom && <p className="text-xs text-red-500 mt-0.5">{errors.paidFrom.message}</p>}
               </div>
-              <div className="sm:col-span-2">
-                <label className="text-xs text-gray-600 mb-1 block">Released By</label>
-                <input {...register("releasedBy")} className={inp} />
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block">UTR / Cheque # *</label>
+                <input {...register("utrChequeNo", { required: "Required" })}
+                  className={`${inp} ${errors.utrChequeNo ? "border-red-400 bg-red-50" : ""}`} placeholder="Transaction reference" />
+                {errors.utrChequeNo && <p className="text-xs text-red-500 mt-0.5">{errors.utrChequeNo.message}</p>}
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block">Released By *</label>
+                <input {...register("releasedBy", { required: "Required" })}
+                  className={`${inp} ${errors.releasedBy ? "border-red-400 bg-red-50" : ""}`} placeholder="Your name" />
+                {errors.releasedBy && <p className="text-xs text-red-500 mt-0.5">{errors.releasedBy.message}</p>}
               </div>
             </div>
           </div>
 
           <button type="submit" disabled={submitting}
-            className={`w-full py-3 text-white font-semibold rounded-xl disabled:opacity-60 flex items-center justify-center gap-2 ${
-              status === "Released" ? "bg-teal-600 hover:bg-teal-700" : "bg-orange-500 hover:bg-orange-600"
-            }`}>
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : status === "Released" ? "Release Payment" : "Hold Payment"}
+            className="w-full py-3 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-60 flex items-center justify-center gap-2">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Release Payment"}
           </button>
         </form>
       </div>
@@ -145,11 +158,19 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
 
 const inp = "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white";
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <p className="text-xs text-gray-400">{label}</p>
       <p className="text-sm font-medium text-gray-800">{value}</p>
     </div>
   );
+}
+
+function Spinner() {
+  return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
+}
+
+function NotFound() {
+  return <div className="min-h-screen flex items-center justify-center text-gray-500">Bill not found</div>;
 }

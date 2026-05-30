@@ -136,6 +136,19 @@ On dashboard: bills with `isDuplicate = "Yes"` are highlighted red.
 
 ---
 
+## Bill Calendar Tab (recurring bills tracker)
+
+**Tab name:** `Bill Calendar` (exact). Separate tab in the same spreadsheet.
+- Row 1: title. Row 2: headers. Row 3+: data (`CAL_DATA_START = 3`).
+- Fixed cols A–E: `Vendor` · `Site` · `Bill Type` · `Frequency` · `Agreed Amount (₹)`
+- Cols F onward: one per month, label = exact header (e.g. `Apr 2026` … `Mar 2027`). Months read dynamically from row 2 — not hardcoded.
+- Cell status vocabulary: `Expected` | `Received` | `Paid` | `N/A` | `` (blank). Updated manually.
+- I/O: `lib/sheets.ts → getCalendar · appendCalendarRow · updateCalendarCell`
+- API: `/api/calendar` (GET, POST), `/api/calendar/cell` (PATCH `{rowIndex, monthIndex, status}`)
+- Agreed Amount written with `RAW`; month cells with `USER_ENTERED`.
+
+---
+
 ## Edit Rules (Option B)
 Data from any stage is editable by the stage owner until the next stage is approved.
 - Verification + Tally fields: editable until SP approves

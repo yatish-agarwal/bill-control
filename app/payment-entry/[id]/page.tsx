@@ -4,14 +4,14 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
-import { Loader2, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface FormData {
-  mdApprover: string;
-  mdComments: string;
+  paymentVoucherNo: string;
+  paymentVoucherDate: string;
 }
 
-export default function MDApprovalPage({ params }: { params: Promise<{ id: string }> }) {
+export default function PaymentEntryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [bill, setBill] = useState<Bill | null>(null);
@@ -21,7 +21,7 @@ export default function MDApprovalPage({ params }: { params: Promise<{ id: strin
   const [error, setError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    defaultValues: { mdApprover: "" },
+    defaultValues: { paymentVoucherDate: new Date().toISOString().split("T")[0] },
   });
 
   useEffect(() => {
@@ -38,13 +38,7 @@ export default function MDApprovalPage({ params }: { params: Promise<{ id: strin
       const res = await fetch(`/api/bills/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mdStatus: "Approved",
-          mdApprover: data.mdApprover,
-          mdComments: data.mdComments,
-          mdApprovedOn: new Date().toISOString().split("T")[0],
-          currentStage: "Payment",
-        }),
+        body: JSON.stringify({ ...data, currentStage: "Closed" }),
       });
       const result = await res.json();
       if (!res.ok || result.error) throw new Error(result.error || `HTTP ${res.status}`);
@@ -64,8 +58,8 @@ export default function MDApprovalPage({ params }: { params: Promise<{ id: strin
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white rounded-2xl shadow p-10 text-center max-w-sm w-full">
           <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Approved for Payment</h2>
-          <p className="text-gray-500 text-sm mb-6">Bill moved to Payment queue</p>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Bill Closed</h2>
+          <p className="text-gray-500 text-sm mb-6">Payment voucher posted — bill fully processed</p>
           <button onClick={() => router.push("/")} className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Back to Dashboard</button>
         </div>
       </div>
@@ -77,8 +71,8 @@ export default function MDApprovalPage({ params }: { params: Promise<{ id: strin
       <div className="max-w-lg mx-auto">
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-widest text-yellow-600">Stage 5</span>
-            <h1 className="text-2xl font-bold text-gray-900 mt-1">MD Approval</h1>
+            <span className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Stage 7</span>
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">Payment Entry</h1>
             <p className="text-sm text-gray-500 mt-1">{bill.billId} · {bill.vendor}</p>
           </div>
           <button onClick={() => router.push("/")} className="text-xs text-blue-600 hover:underline mt-1">← Dashboard</button>
@@ -87,20 +81,15 @@ export default function MDApprovalPage({ params }: { params: Promise<{ id: strin
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <InfoRow label="Vendor" value={bill.vendor} />
-            <InfoRow label="Bill No." value={bill.vendorBillNo} />
-            <InfoRow label="Net Payable" value={`₹${bill.finalNetPayable || bill.netAmount}`} />
-            <InfoRow label="Site" value={bill.siteProject} />
-            <InfoRow label="SP Approver" value={bill.spApprover || "—"} />
-            <InfoRow label="SP Approved On" value={bill.spApprovedOn || "—"} />
+            <InfoRow label="Net Paid" value={`₹${bill.finalNetPayable || bill.netAmount}`} />
+            <InfoRow label="Paid From" value={bill.paidFrom || "—"} />
+            <InfoRow label="UTR / Cheque #" value={bill.utrChequeNo || "—"} />
+            <InfoRow label="Payment Date" value={bill.paymentDate || "—"} />
+            <InfoRow label="Released By" value={bill.releasedBy || "—"} />
           </div>
-          {bill.spComments && (
-            <p className="mt-3 text-xs text-gray-500"><span className="font-medium">SP notes:</span> {bill.spComments}</p>
-          )}
-          {bill.billPdfLink && (
-            <a href={bill.billPdfLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-              <FileText className="w-3.5 h-3.5" /> View Bill PDF
-            </a>
-          )}
+          <p className="mt-3 text-xs text-gray-400">
+            Map the above UTR in Tally and post the payment voucher, then record the voucher number here to close the bill.
+          </p>
         </div>
 
         {error && (
@@ -111,22 +100,27 @@ export default function MDApprovalPage({ params }: { params: Promise<{ id: strin
         )}
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-5 space-y-4">
-            <div>
-              <label className="text-xs text-gray-600 mb-1 block">Approver *</label>
-              <input {...register("mdApprover", { required: "Required" })}
-                className={`${inp} ${errors.mdApprover ? "border-red-400 bg-red-50" : ""}`} placeholder="Name" />
-              {errors.mdApprover && <p className="text-xs text-red-500 mt-0.5">{errors.mdApprover.message}</p>}
-            </div>
-            <div>
-              <label className="text-xs text-gray-600 mb-1 block">Comments</label>
-              <textarea {...register("mdComments")} className={inp} rows={2} placeholder="Optional" />
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Payment Voucher Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block">Payment Voucher # *</label>
+                <input {...register("paymentVoucherNo", { required: "Required" })}
+                  className={`${inp} ${errors.paymentVoucherNo ? "border-red-400 bg-red-50" : ""}`} placeholder="PV-0001" />
+                {errors.paymentVoucherNo && <p className="text-xs text-red-500 mt-0.5">{errors.paymentVoucherNo.message}</p>}
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block">Voucher Date *</label>
+                <input type="date" {...register("paymentVoucherDate", { required: "Required" })}
+                  className={`${inp} ${errors.paymentVoucherDate ? "border-red-400 bg-red-50" : ""}`} />
+                {errors.paymentVoucherDate && <p className="text-xs text-red-500 mt-0.5">{errors.paymentVoucherDate.message}</p>}
+              </div>
             </div>
           </div>
 
           <button type="submit" disabled={submitting}
-            className="w-full py-3 bg-yellow-500 text-white font-semibold rounded-xl hover:bg-yellow-600 disabled:opacity-60 flex items-center justify-center gap-2">
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Approve for Payment"}
+            className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Post Voucher & Close Bill"}
           </button>
         </form>
       </div>

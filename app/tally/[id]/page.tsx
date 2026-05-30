@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface FormData {
   tallyVoucherNo: string;
@@ -18,25 +18,34 @@ export default function TallyPage({ params }: { params: Promise<{ id: string }> 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: { tallyEntryDate: new Date().toISOString().split("T")[0] },
   });
 
   useEffect(() => {
-    fetch(`/api/bills/${id}`).then((r) => r.json()).then((b) => { setBill(b); setLoading(false); });
+    fetch(`/api/bills/${id}`)
+      .then((r) => r.json())
+      .then((b) => { setBill(b && !b.error ? b : null); setLoading(false); })
+      .catch((e) => { setError(String(e)); setLoading(false); });
   }, [id]);
 
   const onSubmit = async (data: FormData) => {
     if (!bill) return;
     setSubmitting(true);
+    setError(null);
     try {
-      await fetch(`/api/bills/${id}`, {
+      const res = await fetch(`/api/bills/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, currentStage: "SP Approval" }),
       });
+      const result = await res.json();
+      if (!res.ok || result.error) throw new Error(result.error || `HTTP ${res.status}`);
       setDone(true);
+    } catch (e) {
+      setError(String(e));
     } finally {
       setSubmitting(false);
     }
@@ -61,11 +70,21 @@ export default function TallyPage({ params }: { params: Promise<{ id: string }> 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-lg mx-auto">
-        <div className="mb-6">
-          <span className="text-xs font-semibold uppercase tracking-widest text-purple-600">Stage 3</span>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Tally Entry</h1>
-          <p className="text-sm text-gray-500 mt-1">{bill.billId} · {bill.vendor} · ₹{bill.finalNetPayable || bill.netAmount}</p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-widest text-purple-600">Stage 3</span>
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">Tally Entry</h1>
+            <p className="text-sm text-gray-500 mt-1">{bill.billId} · {bill.vendor} · ₹{bill.finalNetPayable || bill.netAmount}</p>
+          </div>
+          <button onClick={() => router.push("/")} className="text-xs text-blue-600 hover:underline mt-1">← Dashboard</button>
         </div>
+
+        {error && (
+          <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-600 break-all">{error}</p>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-5">
           <div className="grid grid-cols-2 gap-3 text-sm mb-5">

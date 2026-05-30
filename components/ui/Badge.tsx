@@ -16,6 +16,7 @@ const colors: Record<string, string> = {
   "SP Approval": "bg-orange-100 text-orange-800",
   "MD Approval": "bg-yellow-100 text-yellow-800",
   Payment: "bg-teal-100 text-teal-800",
+  "Payment Entry": "bg-indigo-100 text-indigo-800",
   Closed: "bg-green-100 text-green-800",
 };
 

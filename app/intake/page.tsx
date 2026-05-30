@@ -1,28 +1,33 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { FileDropzone } from "@/components/ui/FileDropzone";
-import { Loader2, Sparkles, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, Copy } from "lucide-react";
 
 const SITES = [
-  "Dhulagarh", "Dankuni", "HO / Kolkata", "Bhubaneswar", "Noida", "Pune",
-  "Detroj", "Kheda", "New Mumbai", "New Ahmedabad", "CLCC",
-  "Noida-ZEPTO", "DHLG-ZEPTO", "Kheda-ZEPTO", "Dankuni-ZEPTO",
+  "Dhulagarh", "Dhulagarh-ZEPTO", "Dankuni", "HO / Kolkata", "Bhubaneswar",
+  "Noida", "Pune", "Detroj", "Kheda", "Taloja", "Vavdi", "CLCC",
 ];
 
 const BILL_TYPES = [
-  "WH Electricity", "WH Rent", "Office Rent", "Internet / Telecom",
-  "Cloud / Software", "Manpower Services", "Against PO", "Asset Purchase",
-  "Advance Payment", "Consumables", "Consulting", "Pest Control", "Other",
+  "Electricity", "Rent", "Manpower", "Consumables", "Services", "Staff Expenses",
+  "Advance against PO/PI", "Purchase against PO", "Repair & Maintenance",
+  "IT", "Asset Rental", "Travelling", "Others",
 ];
 
 const SOURCES = ["Email", "Hard Copy", "Courier", "WhatsApp", "Other"];
 
 const SA_LIST = ["Jyoti", "Arpan", "Jaya", "Souro", "Prantika", "Pronoy"];
+
+// Amount fields are stored as strings but must be valid numbers (no commas/letters).
+const money = (required: boolean) =>
+  z.string().refine(
+    (v) => (v.trim() === "" ? !required : /^\d+(\.\d{1,2})?$/.test(v.trim())),
+    required ? "Enter a valid amount" : "Must be a number"
+  );
 
 const schema = z.object({
   source: z.string().min(1, "Required"),
@@ -33,77 +38,85 @@ const schema = z.object({
   dueDate: z.string(),
   billType: z.string().min(1, "Required"),
   poNumber: z.string(),
-  billAmount: z.string().min(1, "Required"),
-  gst: z.string(),
-  tds: z.string(),
-  netAmount: z.string().min(1, "Required"),
+  billAmount: money(true),
+  gst: money(false),
+  tds: money(false),
+  netAmount: money(true),
+  billPdfLink: z.string(),
   assignedTo: z.string().min(1, "Required"),
   intakeBy: z.string().min(1, "Required"),
 });
 
-type FormData = {
-  source: string; siteProject: string; vendor: string; vendorBillNo: string;
-  billDate: string; dueDate: string; billType: string; poNumber: string;
-  billAmount: string; gst: string; tds: string; netAmount: string;
-  assignedTo: string; intakeBy: string;
-};
+type FormData = z.infer<typeof schema>;
+
+// Fields that persist across "Submit & Next" — the data-entry person logs many
+// bills for the same site/source in one sitting, so these stay sticky.
+const STICKY: (keyof FormData)[] = ["source", "siteProject", "assignedTo", "intakeBy"];
+
+type LoggedBill = { billId: string; vendor: string; isDuplicate: boolean };
 
 export default function IntakePage() {
   const router = useRouter();
-  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
-  const [parsing, setParsing] = useState(false);
-  const [parsedFields, setParsedFields] = useState<Partial<FormData> | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [logged, setLogged] = useState<LoggedBill[]>([]);
+  const [lastDup, setLastDup] = useState<LoggedBill | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: { gst: "0", tds: "0" },
-  });
+  const { register, handleSubmit, setValue, watch, getValues, reset, formState: { errors } } =
+    useForm<FormData>({
+      resolver: zodResolver(schema),
+      defaultValues: { gst: "0", tds: "0" },
+    });
 
   const billAmount = watch("billAmount");
   const gst = watch("gst");
   const tds = watch("tds");
 
-  const handleParseInvoice = useCallback(async () => {
-    if (!invoiceFile) return;
-    setParsing(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", invoiceFile);
-      const res = await fetch("/api/parse-invoice", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setParsedFields(data);
-      const fields: (keyof FormData)[] = [
-        "vendor", "vendorBillNo", "billDate", "dueDate",
-        "billAmount", "gst", "tds", "netAmount", "billType", "poNumber",
-      ];
-      fields.forEach((f) => { if (data[f]) setValue(f, data[f]); });
-    } catch (e) {
-      alert("Parse failed: " + String(e));
-    } finally {
-      setParsing(false);
-    }
-  }, [invoiceFile, setValue]);
+  const save = async (data: FormData): Promise<LoggedBill | null> => {
+    setSubmitError(null);
+    const res = await fetch("/api/bills", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok || result.error) throw new Error(result.error || `HTTP ${res.status}`);
+    return { billId: result.billId, vendor: data.vendor, isDuplicate: !!result.isDuplicate };
+  };
 
   const onSubmit = async (data: FormData) => {
     setSubmitting(true);
     try {
-      const res = await fetch("/api/bills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const result = await res.json();
-      if (result.error) throw new Error(result.error);
-      setSuccess(result.billId);
+      const b = await save(data);
+      if (b) setSuccess(b.billId);
     } catch (e) {
-      alert("Submit failed: " + String(e));
+      setSubmitError(String(e));
     } finally {
       setSubmitting(false);
     }
   };
+
+  const onSubmitAndNext = handleSubmit(async (data: FormData) => {
+    setSubmitting(true);
+    try {
+      const b = await save(data);
+      if (b) {
+        setLogged((prev) => [b, ...prev]);
+        setLastDup(b.isDuplicate ? b : null);
+        // Preserve sticky fields, clear the rest for the next bill.
+        const keep = STICKY.reduce<Partial<FormData>>((acc, k) => {
+          acc[k] = getValues(k);
+          return acc;
+        }, {});
+        reset({ gst: "0", tds: "0", ...keep } as FormData);
+      }
+    } catch (e) {
+      setSubmitError(String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  });
 
   if (success) {
     return (
@@ -115,7 +128,7 @@ export default function IntakePage() {
           <p className="text-2xl font-mono font-bold text-blue-700 mb-6">{success}</p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => { setSuccess(null); setInvoiceFile(null); setParsedFields(null); }}
+              onClick={() => { setSuccess(null); reset({ gst: "0", tds: "0" }); }}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
             >
               Log Another
@@ -135,36 +148,55 @@ export default function IntakePage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-6">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Stage 1</span>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Bill Intake</h1>
-          <p className="text-sm text-gray-500 mt-1">Log every new bill within 24 hours of receipt</p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">Stage 1</span>
+            <h1 className="text-2xl font-bold text-gray-900 mt-1">Bill Intake</h1>
+            <p className="text-sm text-gray-500 mt-1">Log every new bill within 24 hours of receipt</p>
+          </div>
+          <button onClick={() => router.push("/")} className="text-xs text-blue-600 hover:underline mt-1">
+            ← Dashboard
+          </button>
         </div>
 
-        {/* Invoice Upload + Auto-parse */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-blue-500" /> Invoice Upload &amp; Auto-Fill
-          </h2>
-          <FileDropzone label="Upload Invoice (PDF / Image)" file={invoiceFile} onChange={setInvoiceFile} />
-          {invoiceFile && (
-            <button
-              type="button"
-              onClick={handleParseInvoice}
-              disabled={parsing}
-              className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
-            >
-              {parsing
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Parsing invoice…</>
-                : <><Sparkles className="w-4 h-4" /> Parse &amp; Auto-fill</>}
-            </button>
-          )}
-          {parsedFields && (
-            <p className="mt-2 text-xs text-green-600 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Fields auto-filled — review and correct if needed
+        {logged.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 mb-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">
+              Logged this session ({logged.length})
             </p>
-          )}
-        </div>
+            <div className="flex flex-wrap gap-2">
+              {logged.map((b) => (
+                <span key={b.billId}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono ${b.isDuplicate ? "bg-rose-100 text-rose-700" : "bg-green-100 text-green-700"}`}>
+                  {b.billId}
+                  {b.isDuplicate && <Copy className="w-3 h-3" />}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {lastDup && (
+          <div className="mb-4 flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-xl p-4">
+            <Copy className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-rose-700">Possible duplicate — {lastDup.billId} saved anyway</p>
+              <p className="text-xs text-rose-500 mt-0.5">
+                A bill with the same vendor + vendor bill no. already exists. It was logged and flagged for review.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {submitError && (
+          <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-700">Submit failed</p>
+              <p className="text-xs text-red-500 mt-0.5 break-all">{submitError}</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)}>
           {/* Bill Details */}
@@ -189,9 +221,14 @@ export default function IntakePage() {
                   {BILL_TYPES.map((t) => <option key={t}>{t}</option>)}
                 </select>
               </Field>
-              <Field label="PO Number" error={errors.poNumber?.message}>
+              <Field label="PO / PI Number" error={errors.poNumber?.message}>
                 <input {...register("poNumber")} className={inp()} placeholder="If applicable" />
               </Field>
+              <div className="sm:col-span-2">
+                <Field label="Bill PDF Link" error={errors.billPdfLink?.message}>
+                  <input {...register("billPdfLink")} className={inp()} placeholder="Paste Drive / cloud link to the bill PDF" />
+                </Field>
+              </div>
             </div>
           </div>
 
@@ -200,16 +237,16 @@ export default function IntakePage() {
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Amounts (₹)</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <Field label="Bill Amount *" error={errors.billAmount?.message}>
-                <input {...register("billAmount")} className={inp(errors.billAmount)} placeholder="0" />
+                <input {...register("billAmount")} className={inp(errors.billAmount)} placeholder="0" inputMode="decimal" />
               </Field>
               <Field label="GST" error={errors.gst?.message}>
-                <input {...register("gst")} className={inp()} placeholder="0" />
+                <input {...register("gst")} className={inp()} placeholder="0" inputMode="decimal" />
               </Field>
               <Field label="TDS" error={errors.tds?.message}>
-                <input {...register("tds")} className={inp()} placeholder="0" />
+                <input {...register("tds")} className={inp()} placeholder="0" inputMode="decimal" />
               </Field>
               <Field label="Net Amount *" error={errors.netAmount?.message}>
-                <input {...register("netAmount")} className={inp(errors.netAmount)} placeholder="0" />
+                <input {...register("netAmount")} className={inp(errors.netAmount)} placeholder="0" inputMode="decimal" />
               </Field>
             </div>
             <button
@@ -224,13 +261,16 @@ export default function IntakePage() {
               }}
               className="mt-2 text-xs text-blue-600 hover:underline"
             >
-              Auto-calculate net amount
+              Auto-calculate net (Bill + GST − TDS)
             </button>
           </div>
 
-          {/* Routing */}
+          {/* Routing — sticky fields */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Routing</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-700">Routing</h2>
+              <span className="text-[10px] uppercase tracking-wide text-gray-400">Stays filled for next bill</span>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Source *" error={errors.source?.message}>
                 <select {...register("source")} className={inp(errors.source)}>
@@ -256,13 +296,23 @@ export default function IntakePage() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Submit Bill"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onSubmitAndNext}
+              disabled={submitting}
+              className="flex-1 py-3 bg-white border-2 border-blue-600 text-blue-700 font-semibold rounded-xl hover:bg-blue-50 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit & Next"}
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Submit & Finish"}
+            </button>
+          </div>
         </form>
       </div>
     </div>
