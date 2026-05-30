@@ -4,7 +4,8 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
-import { Loader2, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
+import { BillHistory } from "@/components/BillHistory";
+import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface FormData {
   spApprover: string;
@@ -74,7 +75,7 @@ export default function SPApprovalPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <span className="text-xs font-semibold uppercase tracking-widest text-orange-600">Stage 4</span>
@@ -84,24 +85,7 @@ export default function SPApprovalPage({ params }: { params: Promise<{ id: strin
           <button onClick={() => router.push("/")} className="text-xs text-blue-600 hover:underline mt-1">← Dashboard</button>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-            <InfoRow label="Vendor" value={bill.vendor} />
-            <InfoRow label="Bill No." value={bill.vendorBillNo} />
-            <InfoRow label="Net Payable" value={`₹${bill.finalNetPayable || bill.netAmount}`} />
-            <InfoRow label="Site" value={bill.siteProject} />
-            <InfoRow label="Verified By" value={bill.verifiedBy || "—"} />
-            <InfoRow label="Tally Voucher" value={bill.tallyVoucherNo || "—"} />
-          </div>
-          {bill.verificationComments && (
-            <p className="mt-3 text-xs text-gray-500"><span className="font-medium">Verification notes:</span> {bill.verificationComments}</p>
-          )}
-          {bill.billPdfLink && (
-            <a href={bill.billPdfLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-              <FileText className="w-3.5 h-3.5" /> View Bill PDF
-            </a>
-          )}
-        </div>
+        <BillHistory bill={bill} />
 
         {error && (
           <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
@@ -135,15 +119,6 @@ export default function SPApprovalPage({ params }: { params: Promise<{ id: strin
 }
 
 const inp = "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white";
-
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-sm font-medium text-gray-800">{value}</p>
-    </div>
-  );
-}
 
 function Spinner() {
   return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;

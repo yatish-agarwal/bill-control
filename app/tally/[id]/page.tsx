@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
+import { BillHistory } from "@/components/BillHistory";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface FormData {
@@ -69,7 +70,7 @@ export default function TallyPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <span className="text-xs font-semibold uppercase tracking-widest text-purple-600">Stage 3</span>
@@ -86,14 +87,7 @@ export default function TallyPage({ params }: { params: Promise<{ id: string }> 
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-5">
-          <div className="grid grid-cols-2 gap-3 text-sm mb-5">
-            <InfoRow label="Vendor" value={bill.vendor} />
-            <InfoRow label="Bill No." value={bill.vendorBillNo} />
-            <InfoRow label="Net Payable" value={`₹${bill.finalNetPayable || bill.netAmount}`} />
-            <InfoRow label="Verified By" value={bill.verifiedBy || "—"} />
-          </div>
-        </div>
+        <BillHistory bill={bill} />
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-5">
@@ -120,15 +114,6 @@ export default function TallyPage({ params }: { params: Promise<{ id: string }> 
           </button>
         </form>
       </div>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-sm font-medium text-gray-800">{value}</p>
     </div>
   );
 }
