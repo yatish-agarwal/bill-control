@@ -26,14 +26,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!bill) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const fields = await req.json();
 
-    // Reject backward stage transitions (stale tab, direct-URL re-submit of an
-    // already-advanced bill). Field edits are still allowed; only regression is blocked.
+    // Enforce the workflow: a bill may stay at its stage or advance exactly one
+    // step. Never backward (stale tab / re-submit), never skipping stages
+    // (direct-URL jump past verification or approvals).
     if (fields.currentStage) {
       const from = STAGE_ORDER.indexOf(bill.currentStage);
       const to = STAGE_ORDER.indexOf(fields.currentStage as BillStage);
-      if (to !== -1 && from !== -1 && to < from) {
+      if (to === -1) {
+        return NextResponse.json(
+          { error: `Unknown stage "${fields.currentStage}".` },
+          { status: 400 }
+        );
+      }
+      if (from !== -1 && to < from) {
         return NextResponse.json(
           { error: `Bill is already at "${bill.currentStage}" — cannot move back to "${fields.currentStage}".` },
+          { status: 409 }
+        );
+      }
+      if (from !== -1 && to > from + 1) {
+        return NextResponse.json(
+          { error: `Cannot skip stages: bill is at "${bill.currentStage}" and cannot jump to "${fields.currentStage}".` },
           { status: 409 }
         );
       }

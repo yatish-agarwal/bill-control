@@ -4,7 +4,9 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
+import { todayLocal } from "@/lib/dates";
 import { BillHistory } from "@/components/BillHistory";
+import { WrongStage } from "@/components/StageGuard";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface FormData {
@@ -22,7 +24,7 @@ export default function TallyPage({ params }: { params: Promise<{ id: string }> 
   const [error, setError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    defaultValues: { tallyEntryDate: new Date().toISOString().split("T")[0] },
+    defaultValues: { tallyEntryDate: todayLocal() },
   });
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function TallyPage({ params }: { params: Promise<{ id: string }> 
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin w-7 h-7 text-blue-600" /></div>;
   if (!bill) return <div className="min-h-screen flex items-center justify-center text-gray-500">Bill not found</div>;
+  if (bill.currentStage !== "Tally") return <WrongStage bill={bill} expected="Tally" />;
 
   if (done) {
     return (

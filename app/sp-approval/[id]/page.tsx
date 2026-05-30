@@ -4,7 +4,9 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
+import { todayLocal } from "@/lib/dates";
 import { BillHistory } from "@/components/BillHistory";
+import { WrongStage } from "@/components/StageGuard";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface FormData {
@@ -43,7 +45,7 @@ export default function SPApprovalPage({ params }: { params: Promise<{ id: strin
           spStatus: "Approved",
           spApprover: data.spApprover,
           spComments: data.spComments,
-          spApprovedOn: new Date().toISOString().split("T")[0],
+          spApprovedOn: todayLocal(),
           currentStage: "MD Approval",
         }),
       });
@@ -59,6 +61,7 @@ export default function SPApprovalPage({ params }: { params: Promise<{ id: strin
 
   if (loading) return <Spinner />;
   if (!bill) return <NotFound />;
+  if (!done && bill.currentStage !== "SP Approval") return <WrongStage bill={bill} expected="SP Approval" />;
 
   if (done) {
     return (

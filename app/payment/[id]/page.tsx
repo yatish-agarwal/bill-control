@@ -4,7 +4,9 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
+import { todayLocal } from "@/lib/dates";
 import { BillHistory } from "@/components/BillHistory";
+import { WrongStage } from "@/components/StageGuard";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface FormData {
@@ -28,7 +30,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
-      paymentDate: new Date().toISOString().split("T")[0],
+      paymentDate: todayLocal(),
       releasedBy: "Tara",
     },
   });
@@ -65,6 +67,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
 
   if (loading) return <Spinner />;
   if (!bill) return <NotFound />;
+  if (!done && bill.currentStage !== "Payment") return <WrongStage bill={bill} expected="Payment" />;
 
   if (done) {
     return (

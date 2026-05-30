@@ -4,8 +4,10 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Bill } from "@/lib/types";
+import { todayLocal } from "@/lib/dates";
 import { Badge } from "@/components/ui/Badge";
 import { DocLink } from "@/components/DocViewer";
+import { WrongStage } from "@/components/StageGuard";
 import { Loader2, AlertTriangle, ClipboardCheck, CheckCircle2 } from "lucide-react";
 
 interface BillTypeRule {
@@ -104,7 +106,7 @@ export default function VerifyPage({ params }: { params: Promise<{ id: string }>
           verificationComments: data.verificationComments,
           verifiedBy: data.verifiedBy,
           verificationStatus: data.verificationStatus,
-          verifiedOn: advance ? new Date().toISOString().split("T")[0] : "",
+          verifiedOn: advance ? todayLocal() : "",
           currentStage: advance ? "Tally" : "Verification",
         }),
       });
@@ -120,6 +122,7 @@ export default function VerifyPage({ params }: { params: Promise<{ id: string }>
 
   if (loading) return <Spinner />;
   if (!bill) return <NotFound />;
+  if (bill.currentStage !== "Verification") return <WrongStage bill={bill} expected="Verification" />;
 
   const status = watch("verificationStatus");
   const ledgerChecked = watch("vendorLedgerChecked") === "Yes";
