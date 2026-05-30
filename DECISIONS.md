@@ -90,6 +90,9 @@ REASON: User: "received is okay, then paid can also be another point" and "let's
 [2026-05-30] DECISION: Recurring bills can be added in-app (modal form on /calendar, appends to the tab) AND read from rows entered directly in the sheet.
 REASON: User chose "Both" — no-manual-work preference, but direct sheet edits must still be honoured.
 
+[2026-05-30] DECISION: The Verification page is driven by the "Bill Type Rules" tab. It shows per-bill-type guidance (Verification Mode, Documents Required, Key Check, Who Verifies), and the checklist is a 3-step flow: (1) vendor ledger checked, (2) "What was verified?" free-text notes — REQUIRED to mark Done, (3) supporting document link. Marking Done also requires ticking a "Bill verified" confirmation gate.
+REASON: The original verify form had no place to record what was actually verified, and ignored the type-specific verification rules we had already defined in the sheet. Each bill type verifies differently (e.g. Electricity = sanity check vs last month; Rent = match agreement; Purchase against PO = 3-way match), so the SA needs that guidance inline. New read-only route: /api/bill-type-rules → getBillTypeRules() reads "Bill Type Rules!A4:E".
+
 ---
 
 ## Open Questions (decisions not yet made)

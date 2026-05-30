@@ -308,6 +308,36 @@ export async function appendCalendarRow(data: {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BILL TYPE RULES — per-type verification guidance (read-only reference tab)
+// Row 3 = headers; row 4+ = one rule per bill type.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface BillTypeRule {
+  billType: string;
+  mode: string;
+  documents: string;
+  keyCheck: string;
+  whoVerifies: string;
+}
+
+export async function getBillTypeRules(): Promise<BillTypeRule[]> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: `Bill Type Rules!A4:E40`,
+  });
+  const rows = res.data.values ?? [];
+  return rows
+    .filter((r) => String(r[0] ?? "").trim() !== "")
+    .map((r) => ({
+      billType: String(r[0] ?? "").trim(),
+      mode: String(r[1] ?? ""),
+      documents: String(r[2] ?? ""),
+      keyCheck: String(r[3] ?? ""),
+      whoVerifies: String(r[4] ?? ""),
+    }));
+}
+
 // Update a single month cell. monthIndex is 0-based within CalendarData.months.
 export async function updateCalendarCell(
   rowIndex: number,
